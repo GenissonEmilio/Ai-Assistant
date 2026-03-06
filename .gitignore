@@ -2,6 +2,9 @@
 /backend/.idea
 /backend/.venv
 /backend/testes.py
+/backend/voices.bin
+/backend/voices.json
+/backend/kokoro-v0_19.onnx
 /frontend/.env
 /node_modules
 /dist

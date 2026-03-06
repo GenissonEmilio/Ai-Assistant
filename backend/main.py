@@ -5,7 +5,7 @@ import sounddevice as sd
 from dotenv import load_dotenv
 from google import genai
 from faster_whisper import WhisperModel
-import collections
+from core.tts import JarvisVoice
 
 load_dotenv()
 
@@ -21,7 +21,10 @@ class Jarvis:
         print("Iniciando audição (Faster-Whisper)...")
         self.stt_model = WhisperModel("tiny", device="cpu", compute_type="int8")
         self.fs = 16000
-        self.chunk_duration = 0.5
+
+        # Voz
+        print("Iniciando sintetizador de voz (Kokoro)...")
+        self.voice_system = JarvisVoice()
 
     def listen_and_transcribe(self):
         duration = 5
@@ -37,38 +40,50 @@ class Jarvis:
         return text.strip()
 
     async def think(self, text):
-        prompt = f"CONTEXTO: Você é o JARVIS. Responda ao {self.user_name} de forma concisa.\nPERGUNTA: {text}"
+        prompt = (
+            f"CONTEXTO: Você é o JARVIS, um assistente de IA sofisticado. "
+            f"Responda ao {self.user_name} de forma concisa, educada e refinada. "
+            f"Evite usar markdown (como asteriscos ou hashtags) na resposta para não confundir a leitura de voz.\n"
+            f"PERGUNTA: {text}"
+        )
         try:
             response = self.client.models.generate_content(model=self.model_id, contents=prompt)
             return response.text
         except Exception as e:
-            return f"Erro nos núcleos: {e}"
+            return f"Senhor, tive uma falha técnica nos núcleos: {e}"
 
 
 async def main():
+    # Inicializa o Jarvis
     jarvis = Jarvis()
-    print(f"--- JARVIS ONLINE ---")
+    print(f"\n--- JARVIS TOTALMENTE OPERACIONAL ---")
+
+    # Saudação inicial
+    jarvis.voice_system.speak(f"Sistemas carregados. Às suas ordens, {os.getenv('USER_NAME', 'Senhor')}.")
 
     while True:
         input("\nPressione ENTER para falar com o Jarvis...")
 
-        # Ouvir
+        # Escuta
         user_text = jarvis.listen_and_transcribe()
 
         if not user_text:
-            print("Jarvis: Não consegui ouvir nada, Senhor.")
+            print("Jarvis: Não consegui captar sua voz, Senhor.")
             continue
 
         print(f"Você disse: {user_text}")
 
         if "sair" in user_text.lower() or "desligar" in user_text.lower():
-            print("Jarvis: Desativando sistemas. Até logo!")
+            jarvis.voice_system.speak("Desativando sistemas. Até logo, Senhor.")
             break
 
-        # Pensar
-        print("Jarvis processando...")
+        # Processamento (Cérebro)
+        print("Jarvis pensando...")
         response = await jarvis.think(user_text)
         print(f"Jarvis: {response}")
+
+        # Resposta Vocal
+        jarvis.voice_system.speak(response)
 
 
 if __name__ == "__main__":
