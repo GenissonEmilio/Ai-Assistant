@@ -1,0 +1,7 @@
+/backend/.env
+/backend/.idea
+/backend/.venv
+/frontend/.env
+/node_modules
+/dist
+/.vscode
