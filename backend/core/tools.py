@@ -1,15 +1,12 @@
 import os
 import subprocess
 import webbrowser
-import pyautogui  # Você vai precisar instalar: pip install pyautogui
+import pyautogui
 from datetime import datetime
 
-
 class JarvisTools:
-    # --- 1. GESTOR DE AMBIENTE (DEV OPS) ---
     @staticmethod
     def open_project(project_name):
-        # Mapeamento dos seus projetos principais
         projects = {
             "morea": r"C:\Users\esgen\OneDrive\Documentos\GitHub\trancadura-web-react",
             "assistant": r"C:\Users\esgen\OneDrive\Documentos\GitHub\Ai-Assistant",
@@ -22,15 +19,21 @@ class JarvisTools:
         return "Projeto não localizado na base de dados."
 
     @staticmethod
+    def open_vscode():
+        try:
+            subprocess.Popen(['code'], shell=True)
+            return "Abrindo o Visual Studio Code, Senhor."
+        except Exception:
+            return "Não consegui localizar o VS Code no sistema."
+
+    @staticmethod
     def check_port(port):
-        # Comando Windows para ver quem está usando a porta
         try:
             result = subprocess.check_output(f"netstat -ano | findstr :{port}", shell=True).decode()
             return f"A porta {port} está ocupada por um processo, Senhor." if result else f"A porta {port} está livre."
         except:
             return f"A porta {port} parece estar disponível."
 
-    # --- 2. DOCUMENTAÇÃO E DB ---
     @staticmethod
     def search_docs(tech):
         docs = {
@@ -45,26 +48,20 @@ class JarvisTools:
 
     @staticmethod
     def open_db_tool():
-        # Tenta abrir o DBeaver ou Workbench (ajuste o nome do comando se necessário)
         subprocess.Popen("dbeaver", shell=True)
         return "Iniciando gerenciador de banco de dados para seus modelos DER."
 
-    # --- 3. HARDWARE E IOT (MOREA/SPARC) ---
     @staticmethod
     def monitor_serial():
-        # Abre o terminal do Windows (wt) ou CMD já chamando o monitor (exemplo com Arduino CLI se tiver)
         return "Senhor, recomendo abrir o monitor serial via VS Code para o projeto SPARC."
 
     @staticmethod
     def toggle_ssh(host="fedora-vm"):
-        # Comando para SSH na sua VM Fedora ou Raspberry
         os.system(f"start cmd /k ssh {host}")
         return f"Estabelecendo conexão segura com {host}."
 
-    # --- 4. DESIGN E PORTFÓLIO ---
     @staticmethod
     def open_blender():
-        # Caminho padrão do Windows, ajuste se o seu for diferente
         path = r"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
         if os.path.exists(path):
             subprocess.Popen([path])
@@ -73,16 +70,13 @@ class JarvisTools:
 
     @staticmethod
     def capture_screen():
-        # Salva um print na sua pasta de portfólio
         folder = r"C:\Users\esgen\OneDrive\Documentos\GitHub\portfolio\screenshots"
         if not os.path.exists(folder): os.makedirs(folder)
-
         filename = f"capture_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         path = os.path.join(folder, filename)
         pyautogui.screenshot(path)
         return f"Captura de tela salva no seu diretório de portfólio."
 
-    # --- ESSENCIAIS ---
     @staticmethod
     def get_time():
         return f"Agora são {datetime.now().strftime('%H:%M')}, Senhor."
