@@ -1,6 +1,7 @@
 /backend/.env
 /backend/.idea
 /backend/.venv
+/backend/testes.py
 /frontend/.env
 /node_modules
 /dist
