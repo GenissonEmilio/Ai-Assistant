@@ -1,20 +1,24 @@
 {
   "name": "frontend",
   "version": "0.1.0",
+  "description": "Assistente Pessoal Jarvis Mark VII",
+  "author": "Genilsson",
+  "main": "dist-electron/main.js",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "compile": "tsc electron/main.ts --outDir dist-electron --target es6 --module commonjs --allowSyntheticDefaultImports --skipLibCheck --moduleResolution node",
     "electron": "electron -r ts-node/register ./electron/main.ts",
-    "jarvis": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run electron\""
+    "jarvis": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run electron\"",
+    "dist": "npm run build && npm run compile && electron-builder build --win"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@types/three": "^0.183.1",
-    "electron": "^40.8.0",
     "electron-is-dev": "^3.0.1",
     "next": "16.1.6",
     "react": "19.2.3",
@@ -23,6 +27,8 @@
     "three": "^0.183.2"
   },
   "devDependencies": {
+    "electron": "^40.8.0",
+    "electron-builder": "^26.8.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -34,5 +40,36 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "wait-on": "^9.0.4"
+  },
+  "build": {
+    "appId": "com.genilsson.jarvis",
+    "productName": "Jarvis Mark VII",
+    "copyright": "Copyright © 2026 Genilsson",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "out/**/*",
+      "dist-electron/**/*",
+      "package.json",
+      {
+        "from": "../backend/build/jarvis_backend",
+        "to": "resources/backend",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "requestedExecutionLevel": "requireAdministrator",
+      "icon": "public/jarvis.PNG"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true,
+      "uninstallDisplayName": "Jarvis Assistant",
+      "deleteAppDataOnUninstall": true
+    }
   }
 }

@@ -5,7 +5,13 @@
 /backend/voices.bin
 /backend/voices.json
 /backend/kokoro-v0_19.onnx
+/backend/dist
+/backend/build
 /frontend/.env
+/frotend/.idea
+/frontend/.vscode
+/frontend/dist-electron
+/frontend/dist_electron
 /node_modules
 /dist
 /.vscode

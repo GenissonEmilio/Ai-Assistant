@@ -1,22 +1,17 @@
 import { app, BrowserWindow, screen, globalShortcut } from 'electron';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 import isDev from 'electron-is-dev';
-import { spawn, exec, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, exec } from 'child_process';
 import * as fs from 'fs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 let pythonProcess: ChildProcess | null = null;
+let win: BrowserWindow | null = null;
 const PANEL_WIDTH = 450;
 
 function reorganizeWindows() {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width } = primaryDisplay.workAreaSize;
   const targetWidth = width - PANEL_WIDTH;
-
-  // Criamos um script físico para evitar erros de escape de string no terminal
   const scriptPath = path.join(app.getPath('temp'), 'jarvis_snap.ps1');
   
   const psScript = `
@@ -46,7 +41,8 @@ public class Win32 {
         $sb = New-Object System.Text.StringBuilder 256
         [Win32]::GetWindowText($handle, $sb, 256)
         $title = $sb.ToString()
-        if ($title -and $title -notmatch "Jarvis|Program Manager|Task bar") {
+        # Ignora o Jarvis pelo título exato para não mover a si mesmo
+        if ($title -and $title -notmatch "Jarvis Mark VII|Program Manager|Task bar") {
             $rect = New-Object Win32+RECT
             [Win32]::GetWindowRect($handle, [ref]$rect)
             if ($rect.Right -gt ${targetWidth}) {
@@ -60,26 +56,33 @@ public class Win32 {
   `;
 
   fs.writeFileSync(scriptPath, psScript, 'utf8');
-
-  // Executa o arquivo .ps1 de forma limpa
-  exec(`powershell -ExecutionPolicy Bypass -File "${scriptPath}"`, (err) => {
-    if (err) console.error("[POWERSHELL-ERROR]:", err);
-    else console.log("[SYSTEM]: Janelas movidas com sucesso.");
-    // Opcional: deletar o arquivo após uso
+  // Executa de forma oculta e com bypass para não falhar
+  exec(`powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "${scriptPath}"`, () => {
     try { fs.unlinkSync(scriptPath); } catch (e) {}
   });
 }
 
 function startBackend() {
-  const pythonPath = path.join(__dirname, '..', '..', 'backend', '.venv', 'Scripts', 'python.exe');
-  const scriptPath = path.join(__dirname, '..', '..', 'backend', 'main.py');
-  pythonProcess = spawn(pythonPath, [scriptPath]);
+  const isProd = app.isPackaged;
+  let pythonPath: string;
+  let args: string[] = [];
+
+  if (isProd) {
+    pythonPath = path.join(process.resourcesPath, 'backend', 'jarvis_backend.exe');
+  } else {
+    pythonPath = path.join(__dirname, '..', '..', 'backend', '.venv', 'Scripts', 'python.exe');
+    args = [path.join(__dirname, '..', '..', 'backend', 'main.py')];
+  }
+
+  if (fs.existsSync(pythonPath) || !isProd) {
+    pythonProcess = spawn(pythonPath, args);
+  }
 }
 
 function createWindow() {
   const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: PANEL_WIDTH,
     height: screenHeight,
     x: screenWidth - PANEL_WIDTH,
@@ -88,19 +91,40 @@ function createWindow() {
     transparent: true,
     alwaysOnTop: true,
     resizable: false,
+    title: "Jarvis Mark VII",
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
+      webSecurity: false 
     },
   });
 
-  win.loadURL(isDev ? 'http://localhost:3000' : `file://${path.join(__dirname, '../out/index.html')}`);
-  
+  if (isDev) {
+    win.loadURL('http://localhost:3000');
+  } else {
+    const indexPath = path.join(__dirname, '..', 'out', 'index.html');
+    win.loadFile(indexPath);
+  }
+
+  // Atalho Global para Fechar
   globalShortcut.register('CommandOrControl+Shift+X', () => app.quit());
 
+  // Atalho Global para Ativar/Esconder (O "Protocolo Mark VII")
+  globalShortcut.register('CommandOrControl+Shift+Space', () => {
+    if (win) {
+      if (win.isVisible()) {
+        win.hide();
+      } else {
+        win.show();
+        win.focus();
+        // Sempre que o Jarvis volta, ele garante o seu espaço na tela
+        reorganizeWindows();
+      }
+    }
+  });
+
   win.on('ready-to-show', () => {
-    // Dá um pequeno delay para garantir que a janela do Jarvis já está lá
-    setTimeout(reorganizeWindows, 1000);
+    setTimeout(reorganizeWindows, 2500);
   });
 
   startBackend();
