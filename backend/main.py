@@ -3,6 +3,8 @@ import asyncio
 import numpy as np
 import sounddevice as sd
 import keyboard
+import socketio
+from aiohttp import web
 from dotenv import load_dotenv
 from google import genai
 from faster_whisper import WhisperModel
@@ -11,6 +13,11 @@ from core.tools import JarvisTools
 from core.memory import JarvisMemory
 
 load_dotenv()
+
+# Configuração do Servidor de Comunicação
+sio = socketio.AsyncServer(async_mode='aiohttp', cors_allowed_origins='*')
+app = web.Application()
+sio.attach(app)
 
 
 class Jarvis:
@@ -28,6 +35,10 @@ class Jarvis:
         print("Iniciando sintetizador de voz (Kokoro)...")
         self.voice_system = JarvisVoice()
         self.is_busy = False
+
+    async def emit_state(self, state, data=None):
+        """Envia o estado atual para o Frontend via WebSocket"""
+        await sio.emit('jarvis_state', {'state': state, 'data': data})
 
     def listen_and_transcribe(self):
         duration = 7
@@ -89,8 +100,11 @@ class Jarvis:
         if self.is_busy: return
         self.is_busy = True
 
+        await self.emit_state('listening')
         user_text = self.listen_and_transcribe()
+
         if user_text:
+            await self.emit_state('thinking')
             print(f"Você disse: {user_text}")
             self.memory.add_to_history("User", user_text)
 
@@ -105,30 +119,26 @@ class Jarvis:
                 print(f"Sistema: {action_result}")
 
             print(f"Jarvis: {final_speech}")
+
+            # Estado Falando para o Frontend
+            await self.emit_state('speaking', {'text': final_speech})
             self.voice_system.speak(final_speech)
             self.memory.add_to_history("Jarvis", final_speech)
 
+        await self.emit_state('idle')
         self.is_busy = False
 
 
-async def main():
-    loop = asyncio.get_running_loop()
+async def start_jarvis(app):
+    loop = asyncio.get_event_loop()
     jarvis = Jarvis(loop)
-
-    print(f"\n--- JARVIS RESIDENTE OPERACIONAL ---")
-    print("Atalho: CTRL + SHIFT + space")
-
-    initial_msg = "Sistemas em modo de espera. Às suas ordens, Senhor."
-    jarvis.voice_system.speak(initial_msg)
+    print(f"\n--- BACKEND JARVIS OPERACIONAL (Websocket Port 5000) ---")
+    print("Atalho: CTRL + SHIFT + SPACE")
 
     keyboard.add_hotkey('ctrl+shift+space', lambda: asyncio.run_coroutine_threadsafe(jarvis.activate(), loop))
-
-    while True:
-        await asyncio.sleep(1)
+    app['jarvis'] = jarvis
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("\nDesligando sistemas...")
+    app.on_startup.append(start_jarvis)
+    web.run_app(app, host='127.0.0.1', port=5000)
