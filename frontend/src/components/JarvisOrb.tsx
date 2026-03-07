@@ -57,8 +57,6 @@ export default function JarvisOrb({ state }: { state: string }) {
         const x = tx;
         const envelope = Math.exp(-Math.pow(x / 4, 2));
         
-        // Removi o volumeSim global. Agora a amplitude é baseada em fases defasadas
-        // w1 e w2 nunca zeram ao mesmo tempo no mesmo X
         const w1 = Math.sin(x * 1.5 + time * 10) * 1.3;
         const w2 = Math.cos(x * 2.2 + time * 15) * 0.5;
         const w3 = Math.sin(x * 4.0 + time * 20) * 0.2;
@@ -66,7 +64,6 @@ export default function JarvisOrb({ state }: { state: string }) {
         ty = (w1 + w2 + w3) * envelope;
         tz += Math.sin(x * 2 + time * 10) * 0.3 * envelope;
       } else {
-        // Respiro da esfera sem corromper os dados de base
         const pulse = 1 + Math.sin(time * 2 + (i / count) * 5) * 0.02;
         tx *= pulse;
         ty *= pulse;
