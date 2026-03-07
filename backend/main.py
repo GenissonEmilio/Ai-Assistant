@@ -29,7 +29,7 @@ class Jarvis:
         self.voice_system = JarvisVoice()
 
     def listen_and_transcribe(self):
-        duration = 5
+        duration = 10
         print(f"\n[ Jarvis ouvindo por {duration}s... ]")
         audio = sd.rec(int(duration * self.fs), samplerate=self.fs, channels=1, dtype='float32', device=1)
         sd.wait()
