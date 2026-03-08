@@ -1,86 +1,52 @@
 import { app, BrowserWindow, screen, globalShortcut } from 'electron';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 import isDev from 'electron-is-dev';
-import { spawn, ChildProcess, exec } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import * as fs from 'fs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let pythonProcess: ChildProcess | null = null;
 let win: BrowserWindow | null = null;
 const PANEL_WIDTH = 450;
 
-function reorganizeWindows() {
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width } = primaryDisplay.workAreaSize;
-  const targetWidth = width - PANEL_WIDTH;
-  const scriptPath = path.join(app.getPath('temp'), 'jarvis_snap.ps1');
-  
-  const psScript = `
-Add-Type -TypeDefinition @"
-using System;
-using System.Runtime.InteropServices;
-using System.Text;
-public class Win32 {
-    [DllImport("user32.dll")]
-    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
-    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-    [DllImport("user32.dll")]
-    public static extern bool IsWindowVisible(IntPtr hWnd);
-    [DllImport("user32.dll")]
-    public static extern void GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-    [DllImport("user32.dll")]
-    public static extern bool MoveWindow(IntPtr hWnd, int x, int y, int nWidth, int nHeight, bool bRepaint);
-    [DllImport("user32.dll")]
-    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-    public struct RECT { public int Left, Top, Right, Bottom; }
-}
-"@
-
-[Win32]::EnumWindows({
-    param($handle, $param)
-    if ([Win32]::IsWindowVisible($handle)) {
-        $sb = New-Object System.Text.StringBuilder 256
-        [Win32]::GetWindowText($handle, $sb, 256)
-        $title = $sb.ToString()
-        # Ignora o Jarvis pelo título exato para não mover a si mesmo
-        if ($title -and $title -notmatch "Jarvis Mark VII|Program Manager|Task bar") {
-            $rect = New-Object Win32+RECT
-            [Win32]::GetWindowRect($handle, [ref]$rect)
-            if ($rect.Right -gt ${targetWidth}) {
-                $height = $rect.Bottom - $rect.Top
-                [Win32]::MoveWindow($handle, $rect.Left, $rect.Top, ${targetWidth}, $height, $true)
-            }
-        }
+// Garante instância única
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.show();
+      win.focus();
     }
-    return $true
-}, [IntPtr]::Zero)
-  `;
-
-  fs.writeFileSync(scriptPath, psScript, 'utf8');
-  // Executa de forma oculta e com bypass para não falhar
-  exec(`powershell -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "${scriptPath}"`, () => {
-    try { fs.unlinkSync(scriptPath); } catch (e) {}
   });
 }
 
 function startBackend() {
   const isProd = app.isPackaged;
-  let pythonPath: string;
-  let args: string[] = [];
+  const pythonPath = isProd 
+    ? path.join(process.resourcesPath, 'backend', 'jarvis_backend.exe')
+    : path.join(__dirname, '..', '..', 'backend', '.venv', 'Scripts', 'python.exe');
 
-  if (isProd) {
-    pythonPath = path.join(process.resourcesPath, 'backend', 'jarvis_backend.exe');
-  } else {
-    pythonPath = path.join(__dirname, '..', '..', 'backend', '.venv', 'Scripts', 'python.exe');
-    args = [path.join(__dirname, '..', '..', 'backend', 'main.py')];
-  }
+  const args = isProd ? [] : [path.join(__dirname, '..', '..', 'backend', 'main.py')];
+
+  console.log(`[SYSTEM]: Iniciando backend em ${pythonPath}`);
 
   if (fs.existsSync(pythonPath) || !isProd) {
+    // Iniciamos o processo normalmente. O Python cuidará do atalho via biblioteca 'keyboard'.
     pythonProcess = spawn(pythonPath, args);
+    
+    pythonProcess.stdout?.on('data', (data) => console.log(`[PYTHON]: ${data.toString()}`));
+    pythonProcess.stderr?.on('data', (data) => console.error(`[PYTHON-ERROR]: ${data.toString()}`));
   }
 }
 
 function createWindow() {
-  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
+  const { height: screenHeight, width: screenWidth } = screen.getPrimaryDisplay().workAreaSize;
 
   win = new BrowserWindow({
     width: PANEL_WIDTH,
@@ -90,7 +56,7 @@ function createWindow() {
     frame: false,
     transparent: true,
     alwaysOnTop: true,
-    resizable: false,
+    resizable: true,
     title: "Jarvis Mark VII",
     webPreferences: {
       nodeIntegration: true,
@@ -102,30 +68,16 @@ function createWindow() {
   if (isDev) {
     win.loadURL('http://localhost:3000');
   } else {
-    const indexPath = path.join(__dirname, '..', 'out', 'index.html');
-    win.loadFile(indexPath);
+    win.loadFile(path.join(__dirname, '..', 'out', 'index.html'));
   }
 
-  // Atalho Global para Fechar
-  globalShortcut.register('CommandOrControl+Shift+X', () => app.quit());
-
-  // Atalho Global para Ativar/Esconder (O "Protocolo Mark VII")
-  globalShortcut.register('CommandOrControl+Shift+Space', () => {
-    if (win) {
-      if (win.isVisible()) {
-        win.hide();
-      } else {
-        win.show();
-        win.focus();
-        // Sempre que o Jarvis volta, ele garante o seu espaço na tela
-        reorganizeWindows();
-      }
-    }
+  // ATALHO DE SEGURANÇA: Apenas para fechar o app completamente.
+  globalShortcut.register('CommandOrControl+Shift+X', () => {
+    app.quit();
   });
 
-  win.on('ready-to-show', () => {
-    setTimeout(reorganizeWindows, 2500);
-  });
+  // REMOVIDO: O registro de Ctrl+Shift+Space aqui. 
+  // Isso permite que o evento passe direto para o SO e seja lido pelo seu Python.
 
   startBackend();
 }
