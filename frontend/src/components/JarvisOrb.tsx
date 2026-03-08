@@ -7,7 +7,6 @@ export default function JarvisOrb({ state }: { state: string }) {
   const count = 18000;
   const radius = 5;
 
-  // Geramos as posições iniciais independentes
   const { spherePositions, waveBasePositions } = useMemo(() => {
     const spherePos = new Float32Array(count * 3);
     const waveBase = new Float32Array(count * 3);
@@ -15,7 +14,6 @@ export default function JarvisOrb({ state }: { state: string }) {
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
       
-      // 1. Esfera Perfeita (Base Funcional)
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
 
@@ -23,7 +21,6 @@ export default function JarvisOrb({ state }: { state: string }) {
       spherePos[i3 + 1] = radius * Math.sin(theta) * Math.sin(phi);
       spherePos[i3 + 2] = radius * Math.cos(phi);
 
-      // 2. Onda Base (Conforme sua versão enviada)
       const xPos = ((i / count) * 2 - 1) * radius * 2.5;
       waveBase[i3] = xPos;
       waveBase[i3 + 1] = 0; 
@@ -38,7 +35,6 @@ export default function JarvisOrb({ state }: { state: string }) {
     const time = stateContext.clock.getElapsedTime();
     const posAttr = points.current.geometry.attributes.position;
     
-    // Parâmetros de transição da sua versão funcional
     let morphSpeed = 0.08;
     let targetPositions = spherePositions;
 
@@ -58,7 +54,6 @@ export default function JarvisOrb({ state }: { state: string }) {
       let tz = targetPositions[i3 + 2];
 
       if (state === 'speaking') {
-        // Lógica de Onda Infinita (Sua versão enviada)
         const x = tx;
         const freq1 = Math.sin(x * 1.2 + time * 8) * 1.5;
         const freq2 = Math.cos(x * 2.5 + time * 12) * 0.6;
@@ -68,14 +63,12 @@ export default function JarvisOrb({ state }: { state: string }) {
         ty = (freq1 + freq2 + noise) * edgeSoftener;
         tz = Math.sin(x * 0.8 + time * 5) * 1.0 * edgeSoftener;
       } else {
-        // Pulsação da Esfera Funcional (Original)
         const pulse = 1 + Math.sin(time * 2 + (i / count) * 5) * 0.02;
         tx *= pulse;
         ty *= pulse;
         tz *= pulse;
 
         if (state === 'thinking') {
-          // Movimento de pensamento original
           ty += Math.sin(time * 20 + i) * 0.15;
         }
       }
@@ -88,7 +81,7 @@ export default function JarvisOrb({ state }: { state: string }) {
 
     posAttr.needsUpdate = true;
     
-    // Rotação da Esfera Funcional
+    // Rotação da Esfera
     points.current.rotation.y += state === 'thinking' ? 0.04 : 0.005;
     if (state === 'speaking') {
         points.current.rotation.y *= 0.9; 
