@@ -5,6 +5,8 @@ import pyautogui
 from datetime import datetime
 
 class JarvisTools:
+    CREATE_NO_WINDOW = 0x08000000
+
     @staticmethod
     def open_project(project_name):
         projects = {
@@ -13,23 +15,27 @@ class JarvisTools:
             "api": r"C:\Users\esgen\OneDrive\Documentos\GitHub\trancadura-web-react-api"
         }
         path = projects.get(project_name.lower())
-        if path:
-            subprocess.Popen(f'code "{path}"', shell=True)
+        if path and os.path.exists(path):
+            subprocess.Popen(f'code "{path}"', shell=True, creationflags=JarvisTools.CREATE_NO_WINDOW)
             return f"Ambiente {project_name} preparado no VS Code, Senhor."
-        return "Projeto não localizado na base de dados."
+        return "Projeto não localizado ou caminho inválido."
 
     @staticmethod
     def open_vscode():
         try:
-            subprocess.Popen(['code'], shell=True)
+            subprocess.Popen('code', shell=True, creationflags=JarvisTools.CREATE_NO_WINDOW)
             return "Abrindo o Visual Studio Code, Senhor."
-        except Exception:
-            return "Não consegui localizar o VS Code no sistema."
+        except Exception as e:
+            return f"Erro ao abrir VS Code: {e}"
 
     @staticmethod
     def check_port(port):
         try:
-            result = subprocess.check_output(f"netstat -ano | findstr :{port}", shell=True).decode()
+            result = subprocess.check_output(
+                f"netstat -ano | findstr :{port}",
+                shell=True,
+                creationflags=JarvisTools.CREATE_NO_WINDOW
+            ).decode()
             return f"A porta {port} está ocupada por um processo, Senhor." if result else f"A porta {port} está livre."
         except:
             return f"A porta {port} parece estar disponível."
@@ -48,7 +54,7 @@ class JarvisTools:
 
     @staticmethod
     def open_db_tool():
-        subprocess.Popen("dbeaver", shell=True)
+        subprocess.Popen("dbeaver", shell=True, creationflags=JarvisTools.CREATE_NO_WINDOW)
         return "Iniciando gerenciador de banco de dados para seus modelos DER."
 
     @staticmethod
@@ -57,21 +63,22 @@ class JarvisTools:
 
     @staticmethod
     def toggle_ssh(host="fedora-vm"):
-        os.system(f"start cmd /k ssh {host}")
+        subprocess.Popen(f"start cmd /k ssh {host}", shell=True)
         return f"Estabelecendo conexão segura com {host}."
 
     @staticmethod
     def open_blender():
         path = r"C:\Program Files\Blender Foundation\Blender 4.5\blender.exe"
         if os.path.exists(path):
-            subprocess.Popen([path])
+            subprocess.Popen([path], creationflags=JarvisTools.CREATE_NO_WINDOW)
             return "Iniciando Blender. O notebook 3D nos espera, Senhor."
         return "Executável do Blender não encontrado no caminho padrão."
 
     @staticmethod
     def capture_screen():
         folder = r"C:\Users\esgen\OneDrive\Documentos\GitHub\portfolio\screenshots"
-        if not os.path.exists(folder): os.makedirs(folder)
+        if not os.path.exists(folder):
+            os.makedirs(folder)
         filename = f"capture_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
         path = os.path.join(folder, filename)
         pyautogui.screenshot(path)

@@ -4,6 +4,7 @@ import numpy as np
 import sounddevice as sd
 import keyboard
 import socketio
+import re
 from aiohttp import web
 from dotenv import load_dotenv
 from google import genai
@@ -25,7 +26,7 @@ class Jarvis:
         self.loop = loop
         self.client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
         self.model_id = "gemini-2.5-flash"
-        self.user_name = os.getenv('USER_NAME', 'Genisson')
+        self.user_name = os.getenv('USER_NAME', 'Genilsson')
         self.memory = JarvisMemory()
 
         print("Iniciando audição (Faster-Whisper small)...")
@@ -37,7 +38,6 @@ class Jarvis:
         self.is_busy = False
 
     async def emit_state(self, state, data=None):
-        """Envia o estado atual para o Frontend via WebSocket"""
         await sio.emit('jarvis_state', {'state': state, 'data': data})
 
     def listen_and_transcribe(self):
@@ -57,84 +57,108 @@ class Jarvis:
     async def think(self, text):
         history = self.memory.get_recent_context(limit=5)
         relevant_facts = self.memory.get_relevant_facts(text)
-        prompt = (
-            f"Você é o JARVIS. Responda ao {self.user_name} de forma concisa.\n"
-            f"HISTÓRICO:\n{history}\n"
-            f"FATOS: {relevant_facts}\n"
-            "AÇÕES: [ACTION:OPEN_VSCODE], [ACTION:GET_TIME], [ACTION:OPEN_URL|link], "
-            "[ACTION:OPEN_PROJECT|X], [ACTION:CHECK_PORT|X], [ACTION:SEARCH_DOCS|X], "
-            "[ACTION:OPEN_DB], [ACTION:OPEN_BLENDER], [ACTION:CAPTURE], [ACTION:SAVE_MEMORY|fato]\n"
-            f"Pergunta: {text}"
+
+        system_instruction = (
+            f"Você é o JARVIS, um assistente técnico avançado. Responda ao {self.user_name}.\n"
+            "REGRAS CRÍTICAS:\n"
+            "1. Para qualquer comando de execução, você DEVE incluir a tag exata ao final da resposta.\n"
+            "2. Se o usuário pedir para abrir o VS Code, use: [ACTION:OPEN_VSCODE]\n"
+            "3. Se pedir para preparar ambiente/projeto (morea, assistant, api), use: [ACTION:OPEN_PROJECT|nome]\n"
+            "4. Use as tags exatamente como definidas, sem espaços extras dentro delas.\n\n"
+            f"CONTEXTO DE MEMÓRIA: {relevant_facts}\n"
+            f"HISTÓRICO RECENTE: {history}"
         )
+
         try:
-            response = self.client.models.generate_content(model=self.model_id, contents=prompt)
+            response = self.client.models.generate_content(
+                model=self.model_id,
+                config={'system_instruction': system_instruction},
+                contents=text
+            )
             return response.text
         except Exception as e:
-            if "429" in str(e): return "Senhor, atingi o limite de cota. Aguarde um instante."
+            if "429" in str(e): return "Senhor, atingi o limite de cota."
             return f"Falha técnica: {e}"
 
     def execute_action(self, response_text):
-        if "[ACTION:GET_TIME]" in response_text: return JarvisTools.get_time()
-        if "[ACTION:OPEN_VSCODE]" in response_text: return JarvisTools.open_vscode()
-        if "[ACTION:OPEN_DB]" in response_text: return JarvisTools.open_db_tool()
-        if "[ACTION:OPEN_BLENDER]" in response_text: return JarvisTools.open_blender()
-        if "[ACTION:CAPTURE]" in response_text: return JarvisTools.capture_screen()
-        if "[ACTION:SAVE_MEMORY|" in response_text:
-            fact = response_text.split("|")[1].split("]")[0]
-            return self.memory.save_fact(fact)
-        if "[ACTION:OPEN_PROJECT|" in response_text:
-            proj = response_text.split("|")[1].split("]")[0]
-            return JarvisTools.open_project(proj)
-        if "[ACTION:CHECK_PORT|" in response_text:
-            port = response_text.split("|")[1].split("]")[0]
-            return JarvisTools.check_port(port)
-        if "[ACTION:SEARCH_DOCS|" in response_text:
-            tech = response_text.split("|")[1].split("]")[0]
-            return JarvisTools.search_docs(tech)
-        if "[ACTION:OPEN_URL|" in response_text:
-            link = response_text.split("|")[1].split("]")[0]
-            return JarvisTools.open_browser(link)
+        res = response_text.upper()
+        print(f"[DEBUG]: Analisando tags em: {res}")
+
+        # Comandos Simples
+        if "[ACTION:GET_TIME]" in res: return JarvisTools.get_time()
+        if "[ACTION:OPEN_VSCODE]" in res: return JarvisTools.open_vscode()
+        if "[ACTION:OPEN_DB]" in res: return JarvisTools.open_db_tool()
+        if "[ACTION:OPEN_BLENDER]" in res: return JarvisTools.open_blender()
+        if "[ACTION:CAPTURE]" in res: return JarvisTools.capture_screen()
+
+        try:
+            if "[ACTION:OPEN_PROJECT|" in res:
+                proj = response_text.split("|")[1].split("]")[0].strip()
+                return JarvisTools.open_project(proj)
+
+            if "[ACTION:CHECK_PORT|" in res:
+                port = response_text.split("|")[1].split("]")[0].strip()
+                return JarvisTools.check_port(port)
+
+            if "[ACTION:SEARCH_DOCS|" in res:
+                tech = response_text.split("|")[1].split("]")[0].strip()
+                return JarvisTools.search_docs(tech)
+
+            if "[ACTION:OPEN_URL|" in res:
+                link = response_text.split("|")[1].split("]")[0].strip()
+                return JarvisTools.open_browser(link)
+
+            if "[ACTION:SAVE_MEMORY|" in res:
+                fact = response_text.split("|")[1].split(")")[0].strip()
+                return self.memory.save_fact(fact)
+        except Exception as e:
+            print(f"[ERROR]: Falha ao processar parâmetros: {e}")
+
         return None
 
-    async def activate(self):
+    async def process_workflow(self, input_text, is_voice=True):
         if self.is_busy: return
         self.is_busy = True
 
-        await self.emit_state('listening')
-        user_text = self.listen_and_transcribe()
-
-        if user_text:
+        try:
             await self.emit_state('thinking')
-            print(f"Você disse: {user_text}")
-            self.memory.add_to_history("User", user_text)
+            response = await self.think(input_text)
+            print(f"IA Response: {response}")
 
-            response = await self.think(user_text)
             action_result = self.execute_action(response)
-            clean_response = response.split("[ACTION")[0].strip()
+
+            clean_response = re.sub(r'\[ACTION:.*?\]', '', response).strip()
 
             final_speech = clean_response
-            if action_result and any(x in action_result for x in ["Agora são", "ocupada", "livre", "memorizado"]):
-                final_speech = f"{clean_response} {action_result}"
-            elif action_result:
-                print(f"Sistema: {action_result}")
+            if action_result:
+                print(f"Resultado da Ação: {action_result}")
+                if any(x in action_result for x in ["Agora são", "ocupada", "livre", "memorizado"]):
+                    final_speech = f"{clean_response} {action_result}"
 
-            print(f"Jarvis: {final_speech}")
-
-            # Estado Falando para o Frontend
             await self.emit_state('speaking', {'text': final_speech})
             self.voice_system.speak(final_speech)
+            self.memory.add_to_history("User", input_text)
             self.memory.add_to_history("Jarvis", final_speech)
 
-        await self.emit_state('idle')
-        self.is_busy = False
+        finally:
+            await self.emit_state('idle')
+            self.is_busy = False
+
+    async def activate(self):
+        if self.is_busy: return
+        await self.emit_state('listening')
+        user_text = self.listen_and_transcribe()
+        if user_text:
+            print(f"Você disse: {user_text}")
+            await self.process_workflow(user_text)
+        else:
+            await self.emit_state('idle')
 
 
 async def start_jarvis(app):
     loop = asyncio.get_event_loop()
     jarvis = Jarvis(loop)
-    print(f"\n--- BACKEND JARVIS OPERACIONAL (Websocket Port 5000) ---")
-    print("Atalho: CTRL + SHIFT + SPACE")
-
+    print(f"\n--- BACKEND JARVIS OPERACIONAL (Port 5000) ---")
     keyboard.add_hotkey('ctrl+shift+space', lambda: asyncio.run_coroutine_threadsafe(jarvis.activate(), loop))
     app['jarvis'] = jarvis
 
@@ -143,30 +167,9 @@ async def start_jarvis(app):
 async def handle_text_command(sid, data):
     jarvis = app['jarvis']
     text_input = data.get('text')
-    if not text_input or jarvis.is_busy:
-        return
-
-    jarvis.is_busy = True
-    print(f"[TEXT_INPUT]: {text_input}")
-
-    jarvis.memory.add_to_history("User", text_input)
-    await jarvis.emit_state('thinking')
-
-    # Pula o STT e vai direto para a IA
-    response = await jarvis.think(text_input)
-    action_result = jarvis.execute_action(response)
-    clean_response = response.split("[ACTION")[0].strip()
-
-    final_speech = clean_response
-    if action_result:
-        final_speech = f"{clean_response} {action_result}"
-
-    await jarvis.emit_state('speaking', {'text': final_speech})
-    jarvis.voice_system.speak(final_speech)
-    jarvis.memory.add_to_history("Jarvis", final_speech)
-
-    await jarvis.emit_state('idle')
-    jarvis.is_busy = False
+    if text_input:
+        print(f"[TEXT_INPUT]: {text_input}")
+        await jarvis.process_workflow(text_input, is_voice=False)
 
 
 if __name__ == "__main__":
