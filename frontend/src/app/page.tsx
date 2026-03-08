@@ -96,7 +96,7 @@ export default function Home() {
             <button onClick={() => setState('speaking')} className="hover:text-cyan-500">[FALAR]</button>
             <button onClick={() => setState('idle')} className="hover:text-white">[RESET]</button>
           </div>
-          <span>SRG_USR: GENILSSON</span> 
+          <span>SRG_USR: GENISSON</span> 
         </div>
       </div>
     </main>
