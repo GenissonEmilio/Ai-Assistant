@@ -139,6 +139,36 @@ async def start_jarvis(app):
     app['jarvis'] = jarvis
 
 
+@sio.on('send_text_command')
+async def handle_text_command(sid, data):
+    jarvis = app['jarvis']
+    text_input = data.get('text')
+    if not text_input or jarvis.is_busy:
+        return
+
+    jarvis.is_busy = True
+    print(f"[TEXT_INPUT]: {text_input}")
+
+    jarvis.memory.add_to_history("User", text_input)
+    await jarvis.emit_state('thinking')
+
+    # Pula o STT e vai direto para a IA
+    response = await jarvis.think(text_input)
+    action_result = jarvis.execute_action(response)
+    clean_response = response.split("[ACTION")[0].strip()
+
+    final_speech = clean_response
+    if action_result:
+        final_speech = f"{clean_response} {action_result}"
+
+    await jarvis.emit_state('speaking', {'text': final_speech})
+    jarvis.voice_system.speak(final_speech)
+    jarvis.memory.add_to_history("Jarvis", final_speech)
+
+    await jarvis.emit_state('idle')
+    jarvis.is_busy = False
+
+
 if __name__ == "__main__":
     app.on_startup.append(start_jarvis)
     web.run_app(app, host='127.0.0.1', port=5000)

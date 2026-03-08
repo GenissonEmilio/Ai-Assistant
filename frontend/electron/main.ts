@@ -15,13 +15,8 @@ function startBackend() {
 
   pythonProcess = spawn(pythonPath, [scriptPath]);
 
-  pythonProcess.stdout?.on('data', (data) => {
-    console.log(`[PYTHON]: ${data.toString().trim()}`);
-  });
-
-  pythonProcess.stderr?.on('data', (data) => {
-    console.error(`[PYTHON-ERROR]: ${data.toString().trim()}`);
-  });
+  pythonProcess.stdout?.on('data', (data) => console.log(`[PYTHON]: ${data.toString().trim()}`));
+  pythonProcess.stderr?.on('data', (data) => console.error(`[PYTHON-ERROR]: ${data.toString().trim()}`));
 }
 
 function createWindow() {
@@ -31,12 +26,12 @@ function createWindow() {
   const win = new BrowserWindow({
     width: panelWidth,
     height: screenHeight,
-    x: screenWidth - panelWidth, // Inicia na direita, mas agora pode sair de lá
+    x: screenWidth - panelWidth,
     y: 0,
-    frame: false, // Mantém sem bordas
-    transparent: true,
-    alwaysOnTop: true,
-    resizable: true, // AGORA É MÓVEL
+    frame: false,
+    transparent: false,
+    alwaysOnTop: false,
+    resizable: true,
     skipTaskbar: false,
     webPreferences: {
       nodeIntegration: true,
@@ -46,9 +41,7 @@ function createWindow() {
 
   win.loadURL(isDev ? 'http://localhost:3000' : `file://${path.join(__dirname, '../out/index.html')}`);
 
-  globalShortcut.register('CommandOrControl+Shift+X', () => {
-    app.quit();
-  });
+  globalShortcut.register('CommandOrControl+Shift+X', () => app.quit());
 
   startBackend();
 }

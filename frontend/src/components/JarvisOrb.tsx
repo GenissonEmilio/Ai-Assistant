@@ -7,12 +7,15 @@ export default function JarvisOrb({ state }: { state: string }) {
   const count = 18000;
   const radius = 5;
 
-  const { spherePositions, wavePositions } = useMemo(() => {
+  // Geramos as posições iniciais independentes
+  const { spherePositions, waveBasePositions } = useMemo(() => {
     const spherePos = new Float32Array(count * 3);
-    const wavePos = new Float32Array(count * 3);
+    const waveBase = new Float32Array(count * 3);
 
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
+      
+      // 1. Esfera Perfeita (Base Funcional)
       const phi = Math.acos(-1 + (2 * i) / count);
       const theta = Math.sqrt(count * Math.PI) * phi;
 
@@ -20,11 +23,13 @@ export default function JarvisOrb({ state }: { state: string }) {
       spherePos[i3 + 1] = radius * Math.sin(theta) * Math.sin(phi);
       spherePos[i3 + 2] = radius * Math.cos(phi);
 
-      wavePos[i3] = ((i / count) * 2 - 1) * radius * 3.5;
-      wavePos[i3 + 1] = 0;
-      wavePos[i3 + 2] = (Math.random() - 0.5) * 0.8;
+      // 2. Onda Base (Conforme sua versão enviada)
+      const xPos = ((i / count) * 2 - 1) * radius * 2.5;
+      waveBase[i3] = xPos;
+      waveBase[i3 + 1] = 0; 
+      waveBase[i3 + 2] = Math.sin(i * 0.5) * 0.5;
     }
-    return { spherePositions: spherePos, wavePositions: wavePos };
+    return { spherePositions: spherePos, waveBasePositions: waveBase };
   }, [count]);
 
   const positions = useMemo(() => new Float32Array(count * 3), [count]);
@@ -33,18 +38,17 @@ export default function JarvisOrb({ state }: { state: string }) {
     const time = stateContext.clock.getElapsedTime();
     const posAttr = points.current.geometry.attributes.position;
     
+    // Parâmetros de transição da sua versão funcional
     let morphSpeed = 0.08;
     let targetPositions = spherePositions;
-    
-    if (state === 'listening') {
+
+    if (state === 'speaking') {
+      targetPositions = waveBasePositions;
+      morphSpeed = 0.12; 
+    } else if (state === 'listening') {
       morphSpeed = 0.15;
-      targetPositions = spherePositions;
     } else if (state === 'thinking') {
       morphSpeed = 0.1;
-      targetPositions = spherePositions;
-    } else if (state === 'speaking') {
-      morphSpeed = 0.12;
-      targetPositions = wavePositions;
     }
 
     for (let i = 0; i < count; i++) {
@@ -53,34 +57,42 @@ export default function JarvisOrb({ state }: { state: string }) {
       let ty = targetPositions[i3 + 1];
       let tz = targetPositions[i3 + 2];
 
-      if (state === 'speaking' && targetPositions === wavePositions) {
+      if (state === 'speaking') {
+        // Lógica de Onda Infinita (Sua versão enviada)
         const x = tx;
-        const envelope = Math.exp(-Math.pow(x / 4, 2));
+        const freq1 = Math.sin(x * 1.2 + time * 8) * 1.5;
+        const freq2 = Math.cos(x * 2.5 + time * 12) * 0.6;
+        const noise = Math.sin(x * 5 + time * 20) * 0.2;
+        const edgeSoftener = Math.cos((x / (radius * 2.5)) * (Math.PI / 2));
         
-        const w1 = Math.sin(x * 1.5 + time * 10) * 1.3;
-        const w2 = Math.cos(x * 2.2 + time * 15) * 0.5;
-        const w3 = Math.sin(x * 4.0 + time * 20) * 0.2;
-        
-        ty = (w1 + w2 + w3) * envelope;
-        tz += Math.sin(x * 2 + time * 10) * 0.3 * envelope;
+        ty = (freq1 + freq2 + noise) * edgeSoftener;
+        tz = Math.sin(x * 0.8 + time * 5) * 1.0 * edgeSoftener;
       } else {
+        // Pulsação da Esfera Funcional (Original)
         const pulse = 1 + Math.sin(time * 2 + (i / count) * 5) * 0.02;
         tx *= pulse;
         ty *= pulse;
         tz *= pulse;
 
         if (state === 'thinking') {
+          // Movimento de pensamento original
           ty += Math.sin(time * 20 + i) * 0.15;
         }
       }
 
+      // Interpolação para movimento fluido
       posAttr.array[i3] += (tx - posAttr.array[i3]) * morphSpeed;
       posAttr.array[i3 + 1] += (ty - posAttr.array[i3 + 1]) * morphSpeed;
       posAttr.array[i3 + 2] += (tz - posAttr.array[i3 + 2]) * morphSpeed;
     }
 
     posAttr.needsUpdate = true;
+    
+    // Rotação da Esfera Funcional
     points.current.rotation.y += state === 'thinking' ? 0.04 : 0.005;
+    if (state === 'speaking') {
+        points.current.rotation.y *= 0.9; 
+    }
   });
 
   return (
@@ -90,7 +102,11 @@ export default function JarvisOrb({ state }: { state: string }) {
       </bufferGeometry>
       <pointsMaterial
         size={0.012}
-        color={state === 'listening' ? '#00ffff' : state === 'thinking' ? '#ff00ff' : '#ffffff'}
+        color={
+          state === 'listening' ? '#00e5ff' : 
+          state === 'thinking' ? '#ff00ff' : 
+          state === 'speaking' ? '#ffffff' : '#444444'
+        }
         transparent
         opacity={0.7}
         blending={THREE.AdditiveBlending}

@@ -10,11 +10,21 @@ export const useJarvis = () => {
 
     socket.on('jarvis_state', (data) => {
       setState(data.state);
-      if (data.data?.text) setText(data.data.text);
+      
+      if (data.data?.text) {
+        setText(data.data.text);
+      }
     });
 
-    return () => { socket.disconnect(); };
+    return () => { 
+      socket.disconnect(); 
+    };
   }, []);
 
-  return { state, text };
+  return { 
+    state, 
+    setState, 
+    text, 
+    setText 
+  };
 };
