@@ -9,16 +9,19 @@ export default function Home() {
 
   return (
     <main className="flex h-screen w-screen bg-transparent overflow-hidden font-sans justify-end">
-      {/* Container Principal com área de arraste no topo */}
+      {/* Container Principal */}
       <div className="w-[450px] h-full border-l border-white/10 bg-zinc-950/90 backdrop-blur-3xl flex flex-col p-6 relative shadow-[-20px_0_50px_rgba(0,0,0,0.8)]">
         
-        {/* Barra de Arraste Invisível no topo */}
-        <div className="absolute top-0 left-0 w-full h-8 cursor-move" style={{ WebkitAppRegion: 'drag' } as any} />
+        {/* ÁREA DE ARRASTE: Agora você clica no topo e move o Jarvis */}
+        <div 
+          className="absolute top-0 left-0 w-full h-10 cursor-move z-40" 
+          style={{ WebkitAppRegion: 'drag' } as any} 
+        />
 
         <button 
           onClick={() => window.close()} 
           className="absolute top-4 right-4 text-zinc-600 hover:text-red-500 transition-colors z-50 p-2"
-          style={{ WebkitAppRegion: 'no-drag' } as any} // Botões não devem ser arrastáveis
+          style={{ WebkitAppRegion: 'no-drag' } as any} // Botões não podem ser "arrastáveis"
           title="Fechar Jarvis"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
